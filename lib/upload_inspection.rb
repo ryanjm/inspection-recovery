@@ -1,8 +1,11 @@
 require 'json'
 require 'net/http'
 require 'uri'
+require 'httparty'
 
 class UploadInspection 
+  include HTTParty
+
   
   BASE_URL = "orangeqc.dev/api"
   INSPECTION_URL = "/v3/inspections"
@@ -88,15 +91,15 @@ class UploadInspection
   end
   
   def url
-    "#{@subdomain}.#{BASE_URL}"
+    "http://#{@subdomain}.#{BASE_URL}"
   end
 
   def inspection_url
-    "#{INSPECTION_URL}?single_access_token=#{@token}"
+    "#{INSPECTION_URL}?user_credentials=#{@token}"
   end
 
   def inspection_item_url
-    "#{INSPECTION_ITEM_URL}?single_access_token=#{@token}"
+    "#{INSPECTION_ITEM_URL}?user_credentials=#{@token}"
   end
 
   # Due to some bugs, we want to clean up the inspection item
@@ -111,13 +114,10 @@ class UploadInspection
   end
 
   def upload_inspection
-    puts "url: #{url}"
-    http = Net::HTTP.new(url)
-
-    request = Net::HTTP::Put.new(inspection_url)
-    request.set_form_data(@json['inspection'])
-    response = http.request(request)
-    puts response.body
+    # right now it looks like it is in the right format, just not saving it properly
+    body = { :body => {:inspection => @json['inspection'] }}
+    res = self.class.post(url+inspection_url, body)
+    puts res
   end
 
   def upload_inspection_items(items)
