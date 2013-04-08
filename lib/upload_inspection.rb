@@ -1,15 +1,14 @@
 require 'json'
-require 'net/http'
-require 'uri'
 require 'httparty'
+require 'pry'
 
 class UploadInspection 
   include HTTParty
 
   
-  BASE_URL = "orangeqc.dev/api"
-  INSPECTION_URL = "/v3/inspections"
-  INSPECTION_ITEM_URL = "/v3/inspection_items"
+  BASE_URL = "orangeqc.dev"
+  INSPECTION_URL = "/api/v3/inspections"
+  INSPECTION_ITEM_URL = "/api/v3/inspection_items"
 
   attr_accessor :json
   attr_accessor :dir
@@ -98,10 +97,21 @@ class UploadInspection
     "#{INSPECTION_URL}?user_credentials=#{@token}"
   end
 
+  def inspection_post_url
+    "#{INSPECTION_URL}/#{@json['inspection']['id']}?user_credentials=#{@token}"
+  end
+
   def inspection_item_url
     "#{INSPECTION_ITEM_URL}?user_credentials=#{@token}"
   end
 
+  def format_date(date)
+    # Old format: 2013-04-05T13:42:15-0600:00
+    # New format: 2013-04-08 19:03:00 +0000
+
+    d = DateTime.strptime(date[0..-4], '%Y-%m-%dT%H:%M:%S%Z')
+    d.strftime("%Y-%m-%d %H:%M:%S %z")
+  end
   # Due to some bugs, we want to clean up the inspection item
   def clean_inspection_item(item, pos)
     # Fix position
@@ -110,22 +120,47 @@ class UploadInspection
     item['line_item_id'] = item['item_id']
     item.delete('item_id')
 
+    item['updated_at'] = format_date(item['updated_at'])
+    item['inspection_id'] = @json['inspection']['id']
+
     item
+  end
+
+  def clean_inspection(inspection)
+    inspection['started_at'] = format_date(inspection['started_at'])
+    inspection['ended_at'] = format_date(inspection['ended_at'])
+
+    inspection.delete('uploaded')
+
+    inspection
   end
 
   def upload_inspection
     # right now it looks like it is in the right format, just not saving it properly
-    body = { :body => {:inspection => @json['inspection'] }}
+    inspection = clean_inspection(@json['inspection'])
+    body = { :body => {:inspection => inspection }}
     res = self.class.post(url+inspection_url, body)
-    puts res
+
+    @json['inspection'] = res["data"][0]
   end
 
   def upload_inspection_items(items)
-    
+    items.each_with_index do |item, index|
+      i = clean_inspection_item(item, index)
+      body = { :body => {:inspection_item => i}}
+      res = self.class.post(url+inspection_item_url, body)
+      item = res["data"][0]
+    end
   end
 
   def finalize_inspection
-    
+    inspection = clean_inspection(@json['inspection'])
+    body = { :body => {:inspection => inspection }}
+    self.class.put(url+inspection_post_url, body)
+
+    # @json['inspection'] = res["data"][0]
+
+    puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}"
   end
 
 
