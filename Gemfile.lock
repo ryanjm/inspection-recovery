@@ -2,6 +2,9 @@ GEM
   remote: https://rubygems.org/
   specs:
     coderay (1.0.9)
+    httmultiparty (0.3.9)
+      httparty (>= 0.7.3)
+      multipart-post
     httparty (0.10.2)
       multi_json (~> 1.0)
       multi_xml (>= 0.5.2)
@@ -9,6 +12,7 @@ GEM
     method_source (0.8.1)
     multi_json (1.7.2)
     multi_xml (0.5.3)
+    multipart-post (1.2.0)
     pry (0.9.12)
       coderay (~> 1.0.5)
       method_source (~> 0.8)
@@ -19,6 +23,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  httmultiparty
   httparty
   json
   pry

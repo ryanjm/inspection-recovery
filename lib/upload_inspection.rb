@@ -1,9 +1,9 @@
 require 'json'
-require 'httparty'
+require 'httmultiparty'
 require 'pry'
 
 class UploadInspection 
-  include HTTParty
+  include HTTMultiParty
 
   
   BASE_URL = "orangeqc.dev"
@@ -108,7 +108,6 @@ class UploadInspection
   def format_date(date)
     # Old format: 2013-04-05T13:42:15-0600:00
     # New format: 2013-04-08 19:03:00 +0000
-
     d = DateTime.strptime(date[0..-4], '%Y-%m-%dT%H:%M:%S%Z')
     d.strftime("%Y-%m-%d %H:%M:%S %z")
   end
@@ -147,14 +146,22 @@ class UploadInspection
   def upload_inspection_items(items)
     items.each_with_index do |item, index|
       i = clean_inspection_item(item, index)
+      photo = dir+"/#{i['name']}_#{i['position']}.png"
+      if File.exists?(photo)
+        puts "Found photo at: #{photo}"
+        f = File.new(photo)
+        i['inspection_item_photos_attributes'] = [{"photo"=>f}]
+      end
+
       body = { :body => {:inspection_item => i}}
+      
       res = self.class.post(url+inspection_item_url, body)
-      item = res["data"][0]
+      item = res["data"][0] if res["data"]
     end
   end
 
   def finalize_inspection
-    inspection = clean_inspection(@json['inspection'])
+    inspection = @json['inspection']
     body = { :body => {:inspection => inspection }}
     self.class.put(url+inspection_post_url, body)
 
