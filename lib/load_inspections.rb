@@ -10,7 +10,7 @@ class LoadInspections
 
   # Returns an array of directories under /inspections
   def list_of_directories
-    Dir.entries("./inspections")[2..-1]
+    Dir.entries("./inspections").select {|d| !d.start_with?(".") }
   end
 
   # Takes directories and loads each json into an upload_inspection

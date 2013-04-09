@@ -5,4 +5,5 @@ gem "httparty"
 gem "httmultiparty"
 gem "json"
 gem "pry"
+gem "faraday"
 

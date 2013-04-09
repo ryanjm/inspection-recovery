@@ -1,6 +1,7 @@
 require 'json'
 require 'httmultiparty'
 require 'pry'
+require 'faraday'
 
 class UploadInspection 
   include HTTMultiParty
@@ -14,10 +15,12 @@ class UploadInspection
   attr_accessor :dir
   attr_accessor :subdomain
   attr_accessor :token
+  attr_accessor :image_tracking
 
   def initialize(dir)
     @json = JSON.load(File.open(dir+"/inspection.json"))
     @dir = dir
+    @image_tracking = {}
   end
 
   ################################################
@@ -119,7 +122,7 @@ class UploadInspection
     item['line_item_id'] = item['item_id']
     item.delete('item_id')
 
-    item['updated_at'] = format_date(item['updated_at'])
+    item['updated_at'] = format_date(item['updated_at']) if item['updated_at']
     item['inspection_id'] = @json['inspection']['id']
 
     item
@@ -146,18 +149,47 @@ class UploadInspection
   def upload_inspection_items(items)
     items.each_with_index do |item, index|
       i = clean_inspection_item(item, index)
-      photo = dir+"/#{i['name']}_#{i['position']}.png"
+      # This will be for future versions
+      # photo = dir+"/#{i['name']}_#{i['position']}.png"
+      
+      photo = "#{dir}/#{i['name']}"
+      has_photo = false
+      if @image_tracking.has_key?(i['name'])
+        photo += "-#{@image_tracking[i['name']]}"
+        @image_tracking[i['name']] += 1
+      else
+        @image_tracking[i['name']] = 1
+      end
+      photo += ".png"
+
       if File.exists?(photo)
-        puts "Found photo at: #{photo}"
-        f = File.new(photo)
+        # puts "Found photo at: #{photo}"
+        f = Faraday::UploadIO.new(photo, 'image/png')
         i['inspection_item_photos_attributes'] = [{"photo"=>f}]
+        has_photo = true
       end
 
       body = { :body => {:inspection_item => i}}
       
-      res = self.class.post(url+inspection_item_url, body)
-      item = res["data"][0] if res["data"]
+      # res = self.class.post(url+inspection_item_url, body)
+
+      conn = Faraday.new(:url => url) do |faraday|
+        faraday.request :multipart
+        faraday.request :url_encoded
+        faraday.adapter Faraday.default_adapter
+      end
+
+      res = conn.post inspection_item_url, {:inspection_item=>i}
+
+      if res.status == 200
+        item = JSON.parse(res.body)['data'][0]
+        print has_photo ? "!" : "."
+      else
+        puts "Item for inspection #{@json['inspection']['id']} failed (#{@dir})."
+        binding.pry
+      end
     end
+    print "\n"
   end
 
   def finalize_inspection
@@ -167,7 +199,7 @@ class UploadInspection
 
     # @json['inspection'] = res["data"][0]
 
-    puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}"
+    puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}/?user_credentials=#{@token} has #{@json['inspection_items'].length} items"
   end
 
 
