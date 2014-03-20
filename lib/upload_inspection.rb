@@ -7,7 +7,7 @@ class UploadInspection
   include HTTMultiParty
 
   
-  BASE_URL = "orangeqc.dev"
+  BASE_URL = "orangeqc.com"
   INSPECTION_URL = "/api/v3/inspections"
   INSPECTION_ITEM_URL = "/api/v3/inspection_items"
 
@@ -18,7 +18,10 @@ class UploadInspection
   attr_accessor :image_tracking
 
   def initialize(dir)
-    @json = JSON.load(File.open(dir+"/inspection.json"))
+    # required right now for iOS7
+    f_data = File.open(dir+"/inspection.json", "r:UTF-32:UTF-8")
+    # f_data = File.open(dir+"/inspection.json")
+    @json = JSON.load(f_data)
     @dir = dir
     @image_tracking = {}
   end
@@ -37,7 +40,8 @@ class UploadInspection
     items = @json['inspection_items']
     id = nil
     items.each do |item|
-      id = item['inspection_id'] if item['inspection_id']
+      temp_id = item['inspection_id']
+      id = temp_id if temp_id && temp_id.to_i != -1
     end
     id
   end
@@ -58,6 +62,13 @@ class UploadInspection
 
     # Don't upload if it already has an id
     return if inspection_has_id?
+
+    @conn = Faraday.new(:url => url) do |faraday|
+      faraday.request :multipart
+      faraday.request :url_encoded
+      faraday.adapter Faraday.default_adapter
+    end
+
 
     # Finish uploading if it is a partial upload
     if id = inspection_item_has_id
@@ -111,7 +122,8 @@ class UploadInspection
   def format_date(date)
     # Old format: 2013-04-05T13:42:15-0600:00
     # New format: 2013-04-08 19:03:00 +0000
-    d = DateTime.strptime(date[0..-4], '%Y-%m-%dT%H:%M:%S%Z')
+    # 2014-03-16 23:11:47 MDT
+    d = DateTime.strptime(date, '%Y-%m-%d %H:%M:%S %Z')
     d.strftime("%Y-%m-%d %H:%M:%S %z")
   end
   # Due to some bugs, we want to clean up the inspection item
@@ -124,6 +136,9 @@ class UploadInspection
 
     item['updated_at'] = format_date(item['updated_at']) if item['updated_at']
     item['inspection_id'] = @json['inspection']['id']
+
+    item.delete('image_name')
+    item.delete_if { |key, value| value == nil }
 
     item
   end
@@ -140,46 +155,36 @@ class UploadInspection
   def upload_inspection
     # right now it looks like it is in the right format, just not saving it properly
     inspection = clean_inspection(@json['inspection'])
-    body = { :body => {:inspection => inspection }}
-    res = self.class.post(url+inspection_url, body)
+    # body = { :body => {:inspection => inspection }}
+    # res = self.class.post(url+inspection_url, body)
 
-    @json['inspection'] = res["data"][0]
+    res = @conn.post inspection_url, { :inspection => inspection }
+
+    if res.status == 200 # res["data"]
+      # @json['inspection'] = res["data"][0]
+      @json['inspection'] = JSON.parse(res.body)["data"][0]
+    else
+      puts "Inspection failed"
+      binding.pry
+    end
   end
 
   def upload_inspection_items(items)
     items.each_with_index do |item, index|
-      i = clean_inspection_item(item, index)
+      i = clean_inspection_item(item.dup, index)
       # This will be for future versions
       # photo = dir+"/#{i['name']}_#{i['position']}.png"
       
-      photo = "#{dir}/#{i['name']}"
+      photo = "#{dir}/#{item['image_name']}.png"
       has_photo = false
-      if @image_tracking.has_key?(i['name'])
-        photo += "-#{@image_tracking[i['name']]}"
-        @image_tracking[i['name']] += 1
-      else
-        @image_tracking[i['name']] = 1
-      end
-      photo += ".png"
 
       if File.exists?(photo)
-        # puts "Found photo at: #{photo}"
         f = Faraday::UploadIO.new(photo, 'image/png')
         i['inspection_item_photos_attributes'] = [{"photo"=>f}]
         has_photo = true
       end
 
-      body = { :body => {:inspection_item => i}}
-      
-      # res = self.class.post(url+inspection_item_url, body)
-
-      conn = Faraday.new(:url => url) do |faraday|
-        faraday.request :multipart
-        faraday.request :url_encoded
-        faraday.adapter Faraday.default_adapter
-      end
-
-      res = conn.post inspection_item_url, {:inspection_item=>i}
+      res = @conn.post inspection_item_url, { inspection_item: i }
 
       if res.status == 200
         item = JSON.parse(res.body)['data'][0]
@@ -199,7 +204,7 @@ class UploadInspection
 
     # @json['inspection'] = res["data"][0]
 
-    puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}/?user_credentials=#{@token} has #{@json['inspection_items'].length} items"
+    puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}&user_credentials=#{@token} has #{@json['inspection_items'].length} items"
   end
 
 

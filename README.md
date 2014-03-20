@@ -21,3 +21,19 @@ In order to run, you will need the user's access token and subdomain.
 ```
 
 When you are finished, please make sure to remove uploaded inspections.
+
+## Queries for the server
+
+Manually finalize inspections:
+
+```ruby
+Inspection.find([271495, 271496, 271500, 271506]).each { |i| i.finalize!; i.send_notifications }
+```
+
+See inspections that haven't been finalized:
+
+```ruby
+a = Account.find_by_subdomain("obsidian")
+Inspection.between(2.weeks.ago, Time.now).inactive.within_supervisory_structures([a.company]).count
+```
+
