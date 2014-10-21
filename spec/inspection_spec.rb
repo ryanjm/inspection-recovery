@@ -47,4 +47,14 @@ describe Inspection do
     end
   end
 
+  describe "#update_items" do
+    it "updates inspection_id on inspection items" do
+      inspection = Inspection.new
+      item = InspectionItem.new
+      inspection.inspection_items << item
+      inspection.id = 345
+      inspection.update_items
+      expect(item.inspection_id).to eq(345)
+    end
+  end
 end

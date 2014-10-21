@@ -1,69 +1,42 @@
 require 'json'
 require 'httmultiparty'
-require 'pry'
 require 'faraday'
+
+require 'inspection'
+require 'inspection_item'
+require 'inspection_item_photo'
 
 class UploadInspection
   include HTTMultiParty
 
 
-  BASE_URL = "orangeqc.com"
+  # BASE_URL = "orangeqc.com"
   # BASE_URL = "orangeqc-staging.com"
+  BASE_URL = "orangeqc.dev"
   INSPECTION_URL = "/api/v3/inspections"
   INSPECTION_ITEM_URL = "/api/v3/inspection_items"
   INSPECTION_ITEM_PHOTO_URL = "/api/v4/inspection_item_photos"
 
-  attr_accessor :json
-  attr_accessor :dir
+  attr_accessor :inspection
   attr_accessor :subdomain
   attr_accessor :token
-  attr_accessor :image_tracking
+  attr_accessor :dir
+
 
   def initialize(dir)
-    # required right now for iOS7
-    f_data = File.open(dir+"/inspection.json", "r:UTF-32:UTF-8")
-    # f_data = File.open(dir+"/inspection.json")
-    @json = JSON.load(f_data)
     @dir = dir
-    @image_tracking = {}
+    f_data = File.open(dir+"/inspection.json", "r:UTF-32:UTF-8")
+    json = JSON.load(f_data)
+    @inspection = Inspection.load_dictionary(json)
   end
 
   ################################################
   # Methods for checking what type of upload to do
   ################################################
 
-  # Check to see if the inspection has an id
-  def inspection_has_id?
-    @json['inspection'].has_key?('id')
-  end
-
-  # Check to see if any of the items have an id
-  def inspection_item_has_id
-    items = @json['inspection_items']
-    id = nil
-    items.each do |item|
-      temp_id = item['inspection_id']
-      id = temp_id if temp_id && temp_id.to_i != -1
-    end
-    id
-  end
-
-  def force_upload
-    @json['inspection'].delete('id')
-    @json['inspection_items'].each do |item|
-      item.delete('id')
-      item.delete('inspection_id')
-    end
-  end
-
-
-  def upload(subdomain, token, force = false)
-    force_upload if force
+  def upload(subdomain, token)
     @subdomain = subdomain
     @token = token
-
-    # Don't upload if it already has an id
-    # return if inspection_has_id?
 
     @conn = Faraday.new(:url => url) do |faraday|
       faraday.request :multipart
@@ -71,15 +44,13 @@ class UploadInspection
       faraday.adapter Faraday.default_adapter
     end
 
+    start_upload
+  end
 
-    # Finish uploading if it is a partial upload
-    if id = inspection_item_has_id
-      finish_upload(id)
-    else
-      new_upload
-    end
+  def save_inspection
+    json = JSON.pretty_unparse(@inspection.to_dictionary)
 
-    # TODO: save back to file
+    File.write(dir+"/inspection.json", json)
   end
 
 
@@ -87,28 +58,22 @@ class UploadInspection
   # Upload methods
   ################################################
 
-  def new_upload
-    puts "Doing a new upload"
-    # Upload inspection
-    upload_inspection
-    # Upload inspection items
-    upload_inspection_items(@json['inspection_items'])
-    # Upload inspection item photos
-    upload_inspection_item_photos(@json['inspection_item_photos'])
-    # Finalize inspection
-    finalize_inspection
-  end
+  # Stop the next method from being called if there is an error
+  # Assumption: the method that returns true, should print what the error is
+  def start_upload
+    has_error = false # This is the value we expect from each of the following methods
 
-  def finish_upload(id)
-    puts "Finishing upload"
-    # Grab inspection items without ids
-    items = @json['inspection_items']#.select {|item| !item.key?('inspection_id') }
+    # Upload inspection
+    has_error = upload_inspection
+
     # Upload inspection items
-    upload_inspection_items(items)
+    has_error = upload_inspection_items unless has_error
+
     # Upload inspection item photos
-    # upload_inspection_item_photos(@json['inspection_item_photos'])
+    has_error = upload_inspection_item_photos unless has_error
+
     # Finalize inspection
-    finalize_inspection
+    finalize_inspection unless has_error
   end
 
   def url
@@ -120,7 +85,7 @@ class UploadInspection
   end
 
   def inspection_post_url
-    "#{INSPECTION_URL}/#{@json['inspection']['id']}?user_credentials=#{@token}"
+    "#{INSPECTION_URL}/#{@inspection.id}?user_credentials=#{@token}"
   end
 
   def inspection_item_url
@@ -131,140 +96,108 @@ class UploadInspection
     "#{INSPECTION_ITEM_PHOTO_URL}?user_credentials=#{@token}"
   end
 
-  def format_date(date)
-    # Old format: 2013-04-05T13:42:15-0600:00
-    # New format: 2013-04-08 19:03:00 +0000
-    # 2014-03-16 23:11:47 MDT
-    d = DateTime.strptime(date, '%Y-%m-%d %H:%M:%S %Z')
-    d.strftime("%Y-%m-%d %H:%M:%S %z")
-  end
-  # Due to some bugs, we want to clean up the inspection item
-  def clean_inspection_item(item, pos)
-    i = item.dup
-    # Fix position
-    # i['position'] = pos
-    # Rename item_id
-    if i.key?("item_id")
-      i['line_item_id'] = item['item_id']
-      i.delete('item_id')
-    end
-
-    i.delete('guid')
-
-    i['updated_at'] = format_date(i['updated_at']) if i['updated_at']
-    i['inspection_id'] = @json['inspection']['id']
-
-    i.delete('image_name')
-    i.delete_if { |key, value| value == nil }
-
-    i
-  end
-
-  def clean_inspection(inspection)
-    inspection['started_at'] = format_date(inspection['started_at'])
-    inspection['ended_at'] = format_date(inspection['ended_at'])
-
-    inspection.delete('uploaded')
-
-    inspection
-  end
-
   def upload_inspection
-    # right now it looks like it is in the right format, just not saving it properly
-    inspection = clean_inspection(@json['inspection'])
-    # body = { :body => {:inspection => inspection }}
-    # res = self.class.post(url+inspection_url, body)
+    # Don't upload if it is already uploaded
+    return true if @inspection.uploaded?
 
-    res = @conn.post inspection_url, { :inspection => inspection }
+    res = @conn.post inspection_url, { :inspection => @inspection.upload_dictionary }
 
-    if res.status == 200 # res["data"]
-      # @json['inspection'] = res["data"][0]
-      @json['inspection'] = JSON.parse(res.body)["data"][0]
+    if res.status == 200
+      @inspection.id = JSON.parse(res.body)["data"][0]["id"]
+      @inspection.update_items
+
+      save_inspection
+      true
     else
-      puts "Inspection failed"
-      # binding.pry
+      puts "Inspection failed to upload"
+      false
     end
   end
 
-  def photo_name_for_item(item)
-    photos = @json["inspection_item_photos"].select do |photo|
-      photo["inspectionItem.uuid"] == item["guid"]
-    end
-    photo = photos.first
-    photo ? photo["imageName"] : nil
-  end
+  def upload_inspection_items
+    @inspection.inspection_items do |item|
 
-  def upload_inspection_items(items)
-    items.each_with_index do |item, index|
-      # binding.pry
-      # break if item.key?("id")
 
-      i = clean_inspection_item(item.dup, index)
-      # This will be for future versions
-      # photo = dir+"/#{i['name']}_#{i['position']}.png"
+      # photo_name = photo_name_for_item(item)
+      # # photo = "#{dir}/#{item['image_name']}.png"
+      # photo = "#{dir}/#{photo_name}.png"
+      # has_photo = false
 
-      photo_name = photo_name_for_item(item)
-      # photo = "#{dir}/#{item['image_name']}.png"
-      photo = "#{dir}/#{photo_name}.png"
-      has_photo = false
-
-      # binding.pry
-      if File.exists?(photo)
-        f = Faraday::UploadIO.new(photo, 'image/png')
-        i['inspection_item_photos_attributes'] = [{"photo"=>f}]
-        has_photo = true
-      end
-
-      res = @conn.post inspection_item_url, { inspection_item: i }
-
-      if res.status == 200
-        item = JSON.parse(res.body)['data'][0]
-        print has_photo ? "!" : "."
-      else
-        puts "Item for inspection #{@json['inspection']['id']} failed (#{@dir})."
-        # binding.pry
-      end
-    end
-    print "\n"
-  end
-
-  def upload_inspection_item_photos(photos)
-    photos.each_with_index do |photo, index|
-      # Need to find the actual inspection item's id
-      # inspection_items = @json['inspection_items'].select do |item|
-      #   item['guid'] == photo['inspectionItem.uuid']
+      # # binding.pry
+      # if File.exists?(photo)
+      #   f = Faraday::UploadIO.new(photo, 'image/png')
+      #   i['inspection_item_photos_attributes'] = [{"photo"=>f}]
+      #   has_photo = true
       # end
-      # inspection_item_id = inspection_items.first['id']
-      inspection_item_id = photo["inspection_item_id"]
 
-      p = {
-        image_name: "#{photo["imageName"]}.png",
-        inspection_item_id: inspection_item_id,
-        temporary_url: photo["temporary_url"]
-      }
+      # Skip if item is already uploaded
+      next if item.uploaded?
 
-      res = @conn.post inspection_item_photo_url, { inspection_item_photo: p }
+      res = @conn.post inspection_item_url, { inspection_item: item.upload_dictionary }
 
       if res.status == 200
-        photo = JSON.parse(res.body)['inspection_item_photo']
-        print "!"
+        item.id = JSON.parse(res.body)['data'][0]["id"]
+        item.update_photos
+
+        print "."
+
+        save_inspection
       else
-        puts "Photo for inspection #{@json['inspection']['id']} failed (#{@dir})."
-        binding.pry
+        puts "Item (#{item.guid}) for inspection #{item.inspection_id} failed."
+        # binding.pry
+        return false
       end
     end
     print "\n"
+    true
+  end
+
+  def upload_inspection_item_photo_to_remote
+    @inspection.inspection_photo_items.each do |photo|
+      # Skip if it has already been uploaded to the remote location
+      next if photo.uploaded_to_remote?
+
+      # TODO: Upload photo to remote location
+      # photo.temporary_url = "ABC"
+    end
+  end
+
+  def upload_inspection_item_photos
+    @inspection.inspection_photo_items.each do |photo|
+      # Can't upload to OQC until it is uploaded to a remote location
+      unless photo.uploaded_to_remote?
+        puts "Photo (#{photo.image_name}) for inspection #{@inspection.id} isn't uploaded to remote yet."
+        return false
+      end
+
+      # Skip if it has already been uploaded
+      next if photo.uploaded? || !photo.uploaded_to_remote?
+
+      res = @conn.post inspection_item_photo_url, { inspection_item_photo: photo.upload_dictionary }
+
+      if res.status == 200
+        photo.id = JSON.parse(res.body)['inspection_item_photo'][0]
+        print "!"
+
+        save_inspection
+      else
+        puts "Photo (#{photo.image_name}) for inspection #{@inspection.id} failed."
+        return false
+      end
+    end
+    print "\n"
+    true
   end
 
   def finalize_inspection
-    inspection = @json['inspection']
-    body = { :body => {:inspection => inspection }}
+    body = { body: { inspection: @inspection.upload_dictionary } }
+
+    # TODO: Can this be written @conn.put ?
     self.class.put(url+inspection_post_url, body)
 
     # @json['inspection'] = res["data"][0]
 
     puts "#{url}/reports/inspections/?id=#{@json['inspection']['id']}&user_credentials=#{@token} has #{@json['inspection_items'].length} items"
   end
-
 
 end

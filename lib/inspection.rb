@@ -15,7 +15,7 @@ class Inspection
     end
 
     dictionary["inspection_items"].each do |inspection_item|
-      inspection.inspection_items << InspectionItem.load_dictionary(inspection_item)
+      inspection.inspection_items << InspectionItem.load_dictionary(inspection_item, inspection)
     end
 
     dictionary["inspection_item_photos"].each do |inspection_item_photo|
@@ -50,4 +50,21 @@ class Inspection
       "inspection_item_photos" => self.inspection_item_photos.map(&:to_dictionary)
     }
   end
+
+  def upload_dictionary
+    dic = self.inspection_dictionary
+
+    # Update date strings
+    dic['started_at'] = dic['started_at'].api_date
+    dic['ended_at'] = dic['ended_at'].api_date
+
+    dic
+  end
+
+  def update_items
+    self.inspection_items.each do |item|
+      item.inspection_id = @id
+    end
+  end
+
 end

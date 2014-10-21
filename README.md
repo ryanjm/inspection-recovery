@@ -75,17 +75,3 @@ Just like iOS it should go through the upload process and check each item indivi
 4. Finalize inspection
 
 After each item, make sure to save the file back.
-
-## Models
-
-Inspection
-  uploaded?
-  save_json
-  load_json
-
-Inspection Item
-  uploaded?
-
-Inspection Item Photo
-  uploaded?
-  uploaded_to_remote?

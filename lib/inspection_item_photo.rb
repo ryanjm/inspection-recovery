@@ -39,4 +39,16 @@ class InspectionItemPhoto
   def uploaded_to_remote?
     !self.temporary_url.nil?
   end
+
+  def upload_dictionary
+    dic = self.to_dictionary
+
+    # Delete unneeded items
+    dic.delete('id')
+
+    # Remove nil items
+    dic.delete_if { |key, value| value == nil }
+
+    dic
+  end
 end

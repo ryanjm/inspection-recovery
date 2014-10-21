@@ -45,4 +45,23 @@ describe InspectionItem do
     end
   end
 
+  describe "#update_photos" do
+    it "updates inspection_id on all related photos" do
+      uuid = "ABC-123"
+      photo = InspectionItemPhoto.new
+      photo.inspection_item_uuid = uuid
+      item = InspectionItem.new
+      item.guid = uuid
+      inspection = Inspection.new
+      inspection.inspection_items << item
+      inspection.inspection_item_photos << photo
+      item.inspection = inspection
+
+      item.id = 123
+      item.update_photos
+
+      expect(photo.inspection_item_id).to eq(123)
+    end
+  end
+
 end
