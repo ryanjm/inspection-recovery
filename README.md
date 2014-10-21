@@ -37,3 +37,19 @@ a = Account.find_by_subdomain("obsidian")
 Inspection.between(2.weeks.ago, Time.now).inactive.within_supervisory_structures([a.company]).count
 ```
 
+Remove duplicate items (assuming there are unique comments to work with)
+
+```ruby
+comments = []
+a = []
+i.reload.inspection_items.each do |item| 
+  if comments.index(item.comment) == nil && item.inspection_item_photos.count > 0
+    comments << item.comment # First item, cache the comment
+  else
+    a << item.id
+  end
+end
+a.each { |id| InspectionItem.find(id).destroy }
+```
+
+

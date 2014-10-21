@@ -12,8 +12,8 @@ token = ARGV[1]
 
 inspections = LoadInspections.new.upload_inspections
 
-puts "there is #{inspections.length} inspections"
+puts "there are #{inspections.length} inspections"
 
 inspections.each do |inspection|
-  inspection.upload(subdomain,token,true)
+  inspection.upload(subdomain,token,false)
 end
