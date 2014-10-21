@@ -52,4 +52,40 @@ end
 a.each { |id| InspectionItem.find(id).destroy }
 ```
 
+# TODOS
 
+The script is currently incomplete. Need to handle more situations.
+
+1. Nothing is uploaded (inspection and photos not uploaded)
+2. Photos uploaded, inspection isn't
+3. Partially uploaded, inspection and some items are uploaded
+
+Need to update the actual file so that as data is updated, the related id's are saved.
+
+Should read in JSON and create actual objects. Then those objects should be able to write the data back out.
+
+## Process
+
+Just like iOS it should go through the upload process and check each item individually.
+
+1. Upload the inspection unless it is uploaded
+2. Upload inspection items, unless it is uploaded
+3. Upload inspection item photos to remote server, unless it is uploaded to remote
+3. Upload inspection item photos, unless it is uploaded
+4. Finalize inspection
+
+After each item, make sure to save the file back.
+
+## Models
+
+Inspection
+  uploaded?
+  save_json
+  load_json
+
+Inspection Item
+  uploaded?
+
+Inspection Item Photo
+  uploaded?
+  uploaded_to_remote?

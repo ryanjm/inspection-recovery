@@ -6,4 +6,6 @@ gem "httmultiparty"
 gem "json"
 gem "pry"
 gem "faraday"
-
+gem "rspec"
+gem "guard"
+gem "guard-rspec"
