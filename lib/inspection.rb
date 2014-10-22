@@ -31,7 +31,7 @@ class Inspection
   end
 
   def uploaded?
-    id > 0
+    id && id > 0
   end
 
   def inspection_dictionary
@@ -57,6 +57,9 @@ class Inspection
     # Update date strings
     dic['started_at'] = dic['started_at'].api_date
     dic['ended_at'] = dic['ended_at'].api_date
+
+    # Remove nil items
+    dic.delete_if { |key, value| value == nil }
 
     dic
   end

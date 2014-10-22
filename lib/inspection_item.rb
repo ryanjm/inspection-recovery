@@ -1,4 +1,4 @@
-require 'date_helper'
+require_relative 'date_helper'
 
 class InspectionItem
   attr_accessor :inspection_id, :description, :score, :category_id, :updated_at, :max_score, :grade, :guid, :weight, :comment, :name, :value, :position, :rating_id, :min_score, :id
@@ -29,7 +29,7 @@ class InspectionItem
   end
 
   def uploaded?
-    self.id > 0
+    @id && @id > 0
   end
 
   def upload_dictionary

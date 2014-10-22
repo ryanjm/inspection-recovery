@@ -19,7 +19,7 @@ class InspectionItemPhoto
 
   def to_dictionary
     dic = {}
-    attributes = [:id, :image_name, :inspection_item_id, :inspection_item_uuid]
+    attributes = [:id, :image_name, :inspection_item_id, :inspection_item_uuid, :temporary_url]
     attributes.each do |attribute|
       dic[attribute.to_s] = self.send(attribute)
     end
@@ -33,11 +33,11 @@ class InspectionItemPhoto
   end
 
   def uploaded?
-    self.id > 0
+    @id && @id > 0
   end
 
   def uploaded_to_remote?
-    !self.temporary_url.nil?
+    !@temporary_url.nil?
   end
 
   def upload_dictionary
@@ -45,6 +45,9 @@ class InspectionItemPhoto
 
     # Delete unneeded items
     dic.delete('id')
+    dic.delete('inspectionItem.uuid')
+    dic["image_name"] = dic["imageName"]
+    dic.delete('imageName')
 
     # Remove nil items
     dic.delete_if { |key, value| value == nil }

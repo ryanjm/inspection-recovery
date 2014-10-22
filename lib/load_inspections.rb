@@ -1,4 +1,5 @@
-require './lib/upload_inspection.rb'
+require_relative 'upload_inspection'
+require_relative 'upload_image'
 
 # This class is responsible for loading each folder
 # into an upload_inspection
@@ -15,8 +16,9 @@ class LoadInspections
 
   # Takes directories and loads each json into an upload_inspection
   def create_uploads(dirs)
+    u = UploadImage.new
     dirs.map do |dir|
-      UploadInspection.new("./inspections/"+dir)
+      UploadInspection.new("./inspections/"+dir, u)
     end
   end
 
