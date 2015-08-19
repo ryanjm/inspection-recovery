@@ -51,7 +51,7 @@ class InspectionItem
   def update_photos
     # Select photos which match
     photos = @inspection.inspection_item_photos.select do |photo|
-      photo.inspection_item_uuid == @guid
+      photo.inspection_item_guid == @guid
     end
 
     # Update them all with the next inspection_id
