@@ -15,7 +15,7 @@ class UploadInspection
   # BASE_URL = "orangeqc-staging.com"
   # BASE_URL = "orangeqc.dev"
   INSPECTION_URL = "/api/v4/inspections"
-  INSPECTION_ITEM_URL = "/api/v3/inspection_items"
+  INSPECTION_ITEM_URL = "/api/v4/inspection_items"
   INSPECTION_ITEM_PHOTO_URL = "/api/v4/inspection_item_photos"
 
   attr_accessor :inspection
@@ -129,7 +129,7 @@ class UploadInspection
       res = @conn.post inspection_item_url, { inspection_item: item.upload_dictionary }
 
       if res.status == 200
-        item.id = JSON.parse(res.body)['data'][0]["id"]
+        item.id = JSON.parse(res.body)['inspection_item']["id"]
         item.update_photos
 
         print "."

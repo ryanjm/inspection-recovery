@@ -1,7 +1,7 @@
 require_relative 'date_helper'
 
 class InspectionItem
-  attr_accessor :inspection_id, :description, :score, :category_id, :updated_at, :max_score, :grade, :guid, :weight, :comment, :name, :value, :position, :rating_id, :min_score, :id
+  attr_accessor :inspection_id, :description, :score, :category_id, :updated_at, :range_choice_max_position, :position, :guid, :weight, :comment, :name, :range_choice_position, :rating_id, :range_choice_min_position, :id, :range_choice_label
   attr_accessor :line_item_id # not sure if this is still needed
   attr_accessor :inspection
 
@@ -21,7 +21,7 @@ class InspectionItem
 
   def to_dictionary
     dic = {}
-    attributes = [:inspection_id, :description, :score, :category_id, :updated_at, :max_score, :grade, :guid, :weight, :comment, :name, :value, :position, :rating_id, :min_score, :id]
+    attributes = [:inspection_id, :description, :score, :category_id, :updated_at, :range_choice_max_position, :position, :guid, :weight, :comment, :name, :range_choice_position, :rating_id, :range_choice_min_position, :id, :range_choice_label, :line_item_id]
     attributes.each do |attribute|
       dic[attribute.to_s] = self.send(attribute) if self.send(attribute)
     end
@@ -36,7 +36,7 @@ class InspectionItem
     dic = self.to_dictionary
 
     # Delete unneeded items
-    dic.delete('guid')
+    # dic.delete('guid')
     dic.delete('id')
 
     # Update date strings
